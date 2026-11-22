@@ -16,30 +16,27 @@ function Test-PythonExe([string]$Exe) {
     if (-not $Exe -or $Exe -match '\\WindowsApps\\' -or -not (Test-Path -LiteralPath $Exe)) {
         return $false
     }
-    & $Exe -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
+    # A leitura de texto (rapidocr) nao existe para Python 3.13 nem 3.14.
+    & $Exe -c "import sys; raise SystemExit(0 if (3, 10) <= sys.version_info < (3, 13) else 1)"
     return $LASTEXITCODE -eq 0
 }
 
 function Get-PythonExe {
     $candidates = @()
-    $local = Join-Path $env:LOCALAPPDATA 'Programs\Python'
-    if (Test-Path -LiteralPath $local) {
-        $candidates += Get-ChildItem -Path $local -Filter python.exe -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName
-    }
-    foreach ($dir in @(
-        'C:\Program Files\Python313',
-        'C:\Program Files\Python312',
-        'C:\Program Files\Python311',
-        'C:\Program Files\Python310'
-    )) {
-        $candidates += (Join-Path $dir 'python.exe')
+    foreach ($ver in @('312', '311', '310')) {
+        $candidates += (Join-Path $env:LOCALAPPDATA "Programs\Python\Python$ver\python.exe")
+        $candidates += "C:\Program Files\Python$ver\python.exe"
     }
     $py = Get-Command py -ErrorAction SilentlyContinue
     if ($py -and $py.Source -notmatch '\\WindowsApps\\') {
-        $printed = & py -3 -c "import sys; print(sys.executable)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $printed) {
-            $candidates += $printed.Trim()
+        foreach ($ver in @('-3.12', '-3.11', '-3.10')) {
+            try {
+                $printed = & py $ver -c "import sys; print(sys.executable)" 2>$null
+                if ($LASTEXITCODE -eq 0 -and $printed) {
+                    $candidates += $printed.Trim()
+                }
+            } catch {
+            }
         }
     }
     foreach ($exe in $candidates) {
@@ -51,7 +48,7 @@ function Get-PythonExe {
 }
 
 function Install-Python {
-    Write-Step 'Python nao encontrado. A instalar Python 3.12...'
+    Write-Step 'A instalar Python 3.12 (a leitura de texto nao funciona no Python 3.13 ou 3.14)...'
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if ($winget) {
         & winget install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements

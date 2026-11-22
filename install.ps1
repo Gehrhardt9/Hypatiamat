@@ -1,5 +1,8 @@
-# No CMD, em qualquer computador com internet:
-# powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/Gehrhardt9/Hypatiamat/main/install.ps1 | iex"
+# No CMD, primeiro entra na tua pasta (nao fiques em C:\Windows\System32):
+#   cd /d %USERPROFILE%
+#   curl.exe -fL -o "%TEMP%\instalar.cmd" https://raw.githubusercontent.com/Gehrhardt9/Hypatiamat/main/instalar.cmd
+#   "%TEMP%\instalar.cmd"
+# O Defender bloqueia "irm | iex": e o mesmo formato que muitos virus usam.
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -75,20 +78,31 @@ function Install-Python {
     $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
 
-Write-Step 'A descarregar o Hypatiamat...'
+Write-Step 'A preparar o Hypatiamat...'
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
-$zip = Join-Path $env:TEMP 'Hypatiamat-main.zip'
-$unpack = Join-Path $env:TEMP 'Hypatiamat-unpack'
-if (Test-Path -LiteralPath $unpack) {
-    Remove-Item -LiteralPath $unpack -Recurse -Force
+$junto = $null
+if ($PSScriptRoot) {
+    $candidato = Join-Path $PSScriptRoot 'hypatyamat.py'
+    if (Test-Path -LiteralPath $candidato) {
+        $junto = $PSScriptRoot
+    }
 }
-Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zip
-Expand-Archive -LiteralPath $zip -DestinationPath $unpack -Force
-$src = Join-Path $unpack 'Hypatiamat-main'
-if (-not (Test-Path -LiteralPath (Join-Path $src 'hypatyamat.py'))) {
-    throw 'O download nao trouxe o programa.'
+if ($junto) {
+    Copy-Item -Path (Join-Path $junto '*') -Destination $Dest -Recurse -Force
+} else {
+    $zip = Join-Path $env:TEMP 'Hypatiamat-main.zip'
+    $unpack = Join-Path $env:TEMP 'Hypatiamat-unpack'
+    if (Test-Path -LiteralPath $unpack) {
+        Remove-Item -LiteralPath $unpack -Recurse -Force
+    }
+    Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zip
+    Expand-Archive -LiteralPath $zip -DestinationPath $unpack -Force
+    $src = Join-Path $unpack 'Hypatiamat-main'
+    if (-not (Test-Path -LiteralPath (Join-Path $src 'hypatyamat.py'))) {
+        throw 'O download nao trouxe o programa.'
+    }
+    Copy-Item -Path (Join-Path $src '*') -Destination $Dest -Recurse -Force
 }
-Copy-Item -Path (Join-Path $src '*') -Destination $Dest -Recurse -Force
 
 $python = Get-PythonExe
 if (-not $python) {
